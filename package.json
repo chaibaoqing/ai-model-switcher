@@ -1,6 +1,6 @@
 {
   "name": "ai-model-switcher",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "AI Model Switcher — 多模型统一代理，让 Codex / Claude Desktop 无缝使用 DeepSeek、智谱 GLM 等模型",
   "type": "module",
   "main": "src/server.js",

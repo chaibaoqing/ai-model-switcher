@@ -6,8 +6,9 @@
 
 import http from 'node:http';
 import https from 'node:https';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { config, getActiveProvider, setActiveProvider, save as saveConfig } from './config.js';
 import { SseTranslator } from './translator.js';
@@ -20,7 +21,7 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
-const VERSION = '1.1.0';
+const VERSION = '1.2.0';
 const providers = config.providers;
 
 // ---------- 工具函数 ----------
@@ -534,6 +535,62 @@ const server = http.createServer(async (req, res) => {
       await Promise.all(tasks);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(results));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: e.message }));
+    }
+  }
+
+  // API: 一键配置 Codex
+  if (req.method === 'POST' && path === '/admin/api/setup-codex') {
+    try {
+      const mainPort = config.data?.mainPort || 11435;
+      const codexDir = resolve(homedir(), '.codex');
+      const codexConfig = resolve(codexDir, 'config.toml');
+
+      if (!existsSync(codexDir)) mkdirSync(codexDir, { recursive: true });
+
+      const toml = `model_provider = "custom"
+model = "auto"
+model_reasoning_effort = "high"
+disable_response_storage = true
+
+[model_providers.custom]
+name = "Model Switcher"
+wire_api = "responses"
+requires_openai_auth = false
+base_url = "http://127.0.0.1:${mainPort}/v1"
+stream_idle_timeout_ms = 300000
+`;
+
+      if (existsSync(codexConfig)) {
+        const backup = codexConfig + '.bak';
+        if (!existsSync(backup)) writeFileSync(backup, readFileSync(codexConfig, 'utf-8'));
+      }
+
+      writeFileSync(codexConfig, toml);
+      log('admin', 'Codex config written');
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: true, path: codexConfig }));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: e.message }));
+    }
+  }
+
+  // API: 检查 Codex 配置状态
+  if (req.method === 'GET' && path === '/admin/api/codex-status') {
+    try {
+      const mainPort = config.data?.mainPort || 11435;
+      const codexConfig = resolve(homedir(), '.codex', 'config.toml');
+      if (existsSync(codexConfig)) {
+        const content = readFileSync(codexConfig, 'utf-8');
+        const configured = content.includes(`127.0.0.1:${mainPort}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ installed: true, configured, path: codexConfig }));
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ installed: false, configured: false, path: codexConfig }));
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: e.message }));

@@ -27,7 +27,7 @@ switch (command) {
   case 'version':
   case '-v':
   case '--version':
-    console.log('ai-model-switcher v1.1.0');
+    console.log('ai-model-switcher v1.2.0');
     break;
   case 'help':
   case '-h':
