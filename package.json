@@ -1,11 +1,11 @@
 {
-  "name": "codex-model-switcher",
-  "version": "1.0.0",
-  "description": "Codex CLI / Desktop 多模型代理 — 让 Codex 无缝使用 DeepSeek、智谱 GLM 等模型",
+  "name": "ai-model-switcher",
+  "version": "1.1.0",
+  "description": "AI Model Switcher — 多模型统一代理，让 Codex / Claude Desktop 无缝使用 DeepSeek、智谱 GLM 等模型",
   "type": "module",
   "main": "src/server.js",
   "bin": {
-    "codex-model-switcher": "./src/cli.js"
+    "ai-model-switcher": "./src/cli.js"
   },
   "scripts": {
     "start": "node src/server.js",
@@ -15,7 +15,7 @@
     "tray": "node scripts/tray.js",
     "tray:cli": "node scripts/tray.js --cli"
   },
-  "keywords": ["codex", "deepseek", "zhipu", "glm", "proxy", "openai", "relay"],
+  "keywords": ["ai", "model-switcher", "codex", "deepseek", "zhipu", "glm", "proxy", "openai", "relay"],
   "author": "",
   "license": "MIT",
   "dependencies": {

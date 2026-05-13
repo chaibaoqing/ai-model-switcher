@@ -23,7 +23,7 @@ function banner(text) {
 
 async function main() {
   console.log('╔══════════════════════════════════════╗');
-  console.log('║   Codex Model Switcher 配置向导       ║');
+  console.log('║   AI Model Switcher 配置向导          ║');
   console.log('╚══════════════════════════════════════╝\n');
 
   // 1. 欢迎信息
@@ -212,7 +212,7 @@ ${preserved.join('\n').trim()}
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.codex-model-switcher.proxy</string>
+    <string>com.ai-model-switcher.proxy</string>
     <key>ProgramArguments</key>
     <array>
         <string>/bin/bash</string>

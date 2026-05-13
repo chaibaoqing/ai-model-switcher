@@ -8,9 +8,9 @@ import { homedir } from 'node:os';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const HOME = homedir();
-const PLIST = resolve(HOME, 'Library/LaunchAgents/com.codex-model-switcher.proxy.plist');
+const PLIST = resolve(HOME, 'Library/LaunchAgents/com.ai-model-switcher.proxy.plist');
 
-console.log('卸载 Codex Model Switcher 服务...\n');
+console.log('卸载 AI Model Switcher 服务...\n');
 
 try {
   execSync(`launchctl bootout gui/$(id -u) ${PLIST} 2>/dev/null`);

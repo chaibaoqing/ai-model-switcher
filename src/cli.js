@@ -27,23 +27,23 @@ switch (command) {
   case 'version':
   case '-v':
   case '--version':
-    console.log('codex-model-switcher v1.0.0');
+    console.log('ai-model-switcher v1.1.0');
     break;
   case 'help':
   case '-h':
   case '--help':
   default:
     console.log(`
-codex-model-switcher — Codex 多模型统一代理
+ai-model-switcher — AI 多模型统一代理
 
 用法:
-  codex-model-switcher start       启动代理服务
-  codex-model-switcher setup       运行配置向导
-  codex-model-switcher install     安装开机自启服务
-  codex-model-switcher uninstall   卸载服务
-  codex-model-switcher tray        菜单栏工具 (macOS)
-  codex-model-switcher version     显示版本
-  codex-model-switcher help        显示帮助
+  ai-model-switcher start       启动代理服务
+  ai-model-switcher setup       运行配置向导
+  ai-model-switcher install     安装开机自启服务
+  ai-model-switcher uninstall   卸载服务
+  ai-model-switcher tray        菜单栏工具 (macOS)
+  ai-model-switcher version     显示版本
+  ai-model-switcher help        显示帮助
 `);
     break;
 }

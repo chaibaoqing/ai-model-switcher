@@ -20,7 +20,7 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const providers = config.providers;
 
 // ---------- 工具函数 ----------
@@ -41,14 +41,22 @@ function readBody(req) {
 
 function httpsRequest(options, body) {
   return new Promise((ok, fail) => {
-    const payload = typeof body === 'string' ? body : JSON.stringify(body);
     const opts = { ...options, headers: { ...options.headers } };
-    opts.headers['Content-Length'] = Buffer.byteLength(payload);
-    const req = https.request(opts, ok);
-    req.on('error', fail);
-    req.setTimeout(300000, () => { req.destroy(); fail(new Error('timeout')); });
-    req.write(payload);
-    req.end();
+    if (body !== undefined && body !== '') {
+      const payload = typeof body === 'string' ? body : JSON.stringify(body);
+      opts.headers['Content-Length'] = Buffer.byteLength(payload);
+      const req = https.request(opts, ok);
+      req.on('error', fail);
+      req.setTimeout(300000, () => { req.destroy(); fail(new Error('timeout')); });
+      req.write(payload);
+      req.end();
+    } else {
+      // GET 请求，不需要 body
+      const req = https.request(opts, ok);
+      req.on('error', fail);
+      req.setTimeout(300000, () => { req.destroy(); fail(new Error('timeout')); });
+      req.end();
+    }
   });
 }
 
@@ -121,6 +129,10 @@ async function handleDeepSeek(body, provider, res) {
     dsReq.on('end', () => {
       try {
         const completion = JSON.parse(data);
+        // 记录用量
+        if (completion.usage) {
+          recordUsage(provider, completion.usage.prompt_tokens || 0, completion.usage.completion_tokens || 0, prov.model);
+        }
         const msg = completion.choices?.[0]?.message;
         const output = [];
         if (msg?.content) output.push({ id: 'msg_1', type: 'message', role: 'assistant', content: [{ type: 'output_text', text: msg.content }], status: 'completed' });
@@ -143,6 +155,7 @@ async function handleDeepSeek(body, provider, res) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   const translator = trackUsage(new SseTranslator(res, prov.model), provider, prov.model);
   let buffer = '';
+  let capturedUsage = null;
 
   dsReq.on('data', chunk => {
     buffer += chunk.toString();
@@ -151,8 +164,18 @@ async function handleDeepSeek(body, provider, res) {
     for (const line of lines) {
       if (!line.startsWith('data: ')) continue;
       const json = line.slice(6).trim();
-      if (json === '[DONE]') { translator.done(null); return; }
-      try { translator.feedChatCompletion(JSON.parse(json)); } catch {}
+      if (json === '[DONE]') { translator.done(capturedUsage); return; }
+      try {
+        const parsed = JSON.parse(json);
+        // DeepSeek 最后一个 chunk 包含 usage
+        if (parsed.usage) {
+          capturedUsage = {
+            input_tokens: parsed.usage.prompt_tokens || 0,
+            output_tokens: parsed.usage.completion_tokens || 0,
+          };
+        }
+        translator.feedChatCompletion(parsed);
+      } catch {}
     }
   });
 
@@ -160,10 +183,19 @@ async function handleDeepSeek(body, provider, res) {
     if (buffer.trim()) {
       for (const line of buffer.split('\n')) {
         if (!line.startsWith('data: ') || line.slice(6).trim() === '[DONE]') continue;
-        try { translator.feedChatCompletion(JSON.parse(line.slice(6).trim())); } catch {}
+        try {
+          const parsed = JSON.parse(line.slice(6).trim());
+          if (parsed.usage) {
+            capturedUsage = {
+              input_tokens: parsed.usage.prompt_tokens || 0,
+              output_tokens: parsed.usage.completion_tokens || 0,
+            };
+          }
+          translator.feedChatCompletion(parsed);
+        } catch {}
       }
     }
-    translator.done(null);
+    translator.done(capturedUsage);
   });
 
   dsReq.on('error', e => {
@@ -223,6 +255,10 @@ async function handleZhiPu(body, provider, res) {
     zRes.on('end', () => {
       try {
         const parsed = JSON.parse(data);
+        // 记录用量
+        if (parsed.usage) {
+          recordUsage(provider, parsed.usage.input_tokens || 0, parsed.usage.output_tokens || 0, prov.model);
+        }
         const out = [];
         const txt = (parsed.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
         if (txt) out.push({ id: 'msg_1', type: 'message', role: 'assistant', content: [{ type: 'output_text', text: txt }], status: 'completed' });
@@ -243,6 +279,7 @@ async function handleZhiPu(body, provider, res) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   const translator = trackUsage(new SseTranslator(res, prov.model), provider, prov.model);
   let buf = '';
+  let capturedUsage = { input_tokens: 0, output_tokens: 0 };
 
   zRes.setEncoding('utf-8');
   zRes.on('data', chunk => {
@@ -256,8 +293,17 @@ async function handleZhiPu(body, provider, res) {
       if (!ds) continue;
       try {
         const ev = JSON.parse(ds);
+        // Anthropic message_start 包含 input tokens
+        if (ev.type === 'message_start' && ev.message?.usage) {
+          capturedUsage.input_tokens = ev.message.usage.input_tokens || 0;
+          capturedUsage.output_tokens = ev.message.usage.output_tokens || 0;
+        }
+        // message_delta 包含累计 output tokens
+        if (ev.type === 'message_delta' && ev.usage) {
+          capturedUsage.output_tokens = ev.usage.output_tokens || capturedUsage.output_tokens;
+        }
         if (ev.type === 'message_stop') {
-          translator.done(null);
+          translator.done(capturedUsage);
           return;
         }
         translator.feedAnthropicEvent(ev);
@@ -274,12 +320,18 @@ async function handleZhiPu(body, provider, res) {
         if (!ds) continue;
         try {
           const ev = JSON.parse(ds);
-          if (ev.type === 'message_stop') { translator.done(null); return; }
+          if (ev.type === 'message_start' && ev.message?.usage) {
+            capturedUsage.input_tokens = ev.message.usage.input_tokens || 0;
+          }
+          if (ev.type === 'message_delta' && ev.usage) {
+            capturedUsage.output_tokens = ev.usage.output_tokens || capturedUsage.output_tokens;
+          }
+          if (ev.type === 'message_stop') { translator.done(capturedUsage); return; }
           translator.feedAnthropicEvent(ev);
         } catch {}
       }
     }
-    translator.done(null);
+    translator.done(capturedUsage);
   });
 
   zRes.on('error', e => {
@@ -370,11 +422,115 @@ const server = http.createServer(async (req, res) => {
     return res.end(JSON.stringify(getSummary()));
   }
 
+  // API: 账户余额
+  if (req.method === 'GET' && path === '/admin/api/balance') {
+    try {
+      const results = {};
+      const tasks = [];
+      for (const [name, prov] of Object.entries(providers)) {
+        if (!prov.apiKey) continue;
+        tasks.push(
+          (async () => {
+            try {
+              if (prov.wireApi === 'anthropic') {
+                // 智谱 Coding Plan 配额查询
+                const qUrl = new URL('https://open.bigmodel.cn/api/monitor/usage/quota/limit');
+                const qRes = await httpsRequest({
+                  hostname: qUrl.hostname,
+                  path: qUrl.pathname,
+                  method: 'GET',
+                  headers: { 'Authorization': prov.apiKey },
+                }, undefined);
+                let data = '';
+                await new Promise(r => { qRes.on('data', c => data += c); qRes.on('end', r); });
+                const parsed = JSON.parse(data);
+                results[name] = { provider: prov.name, raw: parsed };
+              } else {
+                // DeepSeek 余额
+                const url = new URL('https://api.deepseek.com/user/balance');
+                const bRes = await httpsRequest({
+                  hostname: url.hostname,
+                  path: url.pathname,
+                  method: 'GET',
+                  headers: { 'Authorization': `Bearer ${prov.apiKey}` },
+                }, '');
+                let data = '';
+                await new Promise(r => { bRes.on('data', c => data += c); bRes.on('end', r); });
+                const parsed = JSON.parse(data);
+                results[name] = { provider: prov.name, raw: parsed };
+              }
+            } catch (e) {
+              results[name] = { provider: prov.name, error: e.message };
+            }
+          })()
+        );
+      }
+      await Promise.all(tasks);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(results));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: e.message }));
+    }
+  }
+
+  // API: 获取供应商支持的模型列表
+  if (req.method === 'GET' && path === '/admin/api/models') {
+    try {
+      const results = {};
+      const tasks = [];
+      for (const [name, prov] of Object.entries(providers)) {
+        if (!prov.apiKey) { results[name] = { provider: prov.name, models: [] }; continue; }
+        tasks.push(
+          (async () => {
+            try {
+              if (prov.wireApi === 'anthropic') {
+                const mUrl = new URL('https://open.bigmodel.cn/api/paas/v4/models');
+                const mRes = await httpsRequest({
+                  hostname: mUrl.hostname,
+                  path: mUrl.pathname,
+                  method: 'GET',
+                  headers: { 'Authorization': `Bearer ${prov.apiKey}` },
+                }, '');
+                let data = '';
+                await new Promise(r => { mRes.on('data', c => data += c); mRes.on('end', r); });
+                const parsed = JSON.parse(data);
+                const models = (parsed.data || []).map(m => m.id).filter(Boolean);
+                results[name] = { provider: prov.name, models };
+              } else {
+                const mUrl = new URL('https://api.deepseek.com/v1/models');
+                const mRes = await httpsRequest({
+                  hostname: mUrl.hostname,
+                  path: mUrl.pathname,
+                  method: 'GET',
+                  headers: { 'Authorization': `Bearer ${prov.apiKey}` },
+                }, '');
+                let data = '';
+                await new Promise(r => { mRes.on('data', c => data += c); mRes.on('end', r); });
+                const parsed = JSON.parse(data);
+                const models = (parsed.data || []).map(m => m.id).filter(Boolean);
+                results[name] = { provider: prov.name, models };
+              }
+            } catch (e) {
+              results[name] = { provider: prov.name, models: [], error: e.message };
+            }
+          })()
+        );
+      }
+      await Promise.all(tasks);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(results));
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: e.message }));
+    }
+  }
+
   // 健康检查
   if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({
-      service: 'codex-model-switcher',
+      service: 'ai-model-switcher',
       version: VERSION,
       activeProvider: getActiveProvider(),
       status: 'ok'
@@ -431,7 +587,7 @@ const MAIN_PORT = config.mainPort || 11435;
 
 server.listen(MAIN_PORT, '127.0.0.1', () => {
   console.log('='.repeat(50));
-  console.log('  Codex Model Switcher v' + VERSION);
+  console.log('  AI Model Switcher v' + VERSION);
   console.log('='.repeat(50));
   console.log(`  主入口: http://127.0.0.1:${MAIN_PORT}/v1/responses`);
   console.log(`  管理界面: http://127.0.0.1:${MAIN_PORT}/admin`);

@@ -3,88 +3,202 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Codex Model Switcher</title>
+  <title>AI Model Switcher</title>
   <style>
+    :root {
+      --primary: #3b82f6;
+      --primary-dim: rgba(59,130,246,0.1);
+      --primary-border: rgba(59,130,246,0.25);
+      --bg: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-sidebar: #f1f5f9;
+      --bg-inner: #f8fafc;
+      --border: #e2e8f0;
+      --border-light: #f1f5f9;
+      --text: #1e293b;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+      --shadow-hover: 0 4px 12px rgba(0,0,0,0.08);
+      --radius: 12px;
+      --radius-sm: 8px;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; }
-    .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
-    h1 { font-size: 24px; margin-bottom: 8px; }
-    h1 span { color: #10a37f; }
-    .subtitle { color: #888; margin-bottom: 32px; font-size: 14px; }
-    .card { background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
-    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
-    .card-title .dot { width: 8px; height: 8px; border-radius: 50%; }
-    .dot-green { background: #10a37f; }
-    .provider-grid { display: grid; gap: 16px; }
-    .provider-item { background: #111; border: 1px solid #2a2a2a; border-radius: 8px; padding: 20px; transition: border-color 0.2s; }
-    .provider-item.active { border-color: #10a37f; }
-    .provider-item:hover { border-color: #444; }
-    .provider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-    .provider-name { font-weight: 600; font-size: 16px; }
-    .provider-model { color: #888; font-size: 13px; }
-    .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-    .badge-active { background: #10a37f22; color: #10a37f; border: 1px solid #10a37f44; }
-    .badge-inactive { background: #333; color: #888; }
-    .form-group { margin-bottom: 12px; }
-    .form-group label { display: block; font-size: 12px; color: #888; margin-bottom: 4px; }
-    .form-group input { width: 100%; padding: 8px 12px; background: #0a0a0a; border: 1px solid #2a2a2a; border-radius: 6px; color: #e0e0e0; font-size: 14px; outline: none; }
-    .form-group input:focus { border-color: #10a37f; }
-    .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
-    .btn-primary { background: #10a37f; color: white; }
-    .btn-primary:hover { background: #0d8a6a; }
-    .btn-secondary { background: #2a2a2a; color: #e0e0e0; }
-    .btn-secondary:hover { background: #3a3a3a; }
-    .btn-switch { padding: 6px 14px; font-size: 13px; }
-    .actions { display: flex; gap: 8px; margin-top: 12px; }
-    .toast { position: fixed; bottom: 20px; right: 20px; background: #10a37f; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 100; }
-    .toast.show { opacity: 1; }
-    .help { margin-top: 32px; padding: 20px; background: #111; border-radius: 8px; font-size: 13px; line-height: 1.8; }
-    .help code { background: #1a1a1a; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-    /* 用量统计 */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
-    .stat-item { background: #111; border: 1px solid #2a2a2a; border-radius: 8px; padding: 16px; text-align: center; }
-    .stat-value { font-size: 24px; font-weight: 700; color: #10a37f; }
-    .stat-label { font-size: 12px; color: #888; margin-top: 4px; }
-    .chart-container { background: #111; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
-    .chart-title { font-size: 13px; color: #888; margin-bottom: 12px; }
-    .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
-    .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-    .bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 2px; transition: height 0.3s; }
-    .bar-label { font-size: 10px; color: #666; }
-    .recent-table { width: 100%; font-size: 13px; border-collapse: collapse; }
-    .recent-table th { text-align: left; color: #888; font-weight: 500; padding: 8px; border-bottom: 1px solid #2a2a2a; }
-    .recent-table td { padding: 8px; border-bottom: 1px solid #1a1a1a; }
-    .provider-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-    .no-data { text-align: center; color: #555; padding: 32px; font-size: 14px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* 顶部导航 */
+    .header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 0 28px; height: 56px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 50; box-shadow: var(--shadow); }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo-icon { width: 32px; height: 32px; background: linear-gradient(135deg, var(--primary), #8b5cf6); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 14px; }
+    .logo { font-size: 17px; font-weight: 700; color: var(--text); letter-spacing: -0.3px; }
+    .logo span { background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .version { font-size: 11px; color: var(--text-muted); background: var(--bg-sidebar); padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+    .header-right { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+    .header-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .header-right b { color: var(--primary); font-weight: 600; }
+
+    /* 三栏布局 */
+    .layout { display: grid; grid-template-columns: 300px 840px 280px; min-height: calc(100vh - 56px); }
+    .col-left { background: var(--bg-sidebar); border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; max-height: calc(100vh - 56px); }
+    .col-right { background: var(--bg-sidebar); border-left: 1px solid var(--border); padding: 20px; overflow-y: auto; max-height: calc(100vh - 56px); }
+    .col-center { padding: 20px 28px; overflow-y: auto; max-height: calc(100vh - 56px); background: var(--bg); }
+
+    /* 通用卡片 */
+    .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 14px; box-shadow: var(--shadow); transition: box-shadow 0.2s; }
+    .card:hover { box-shadow: var(--shadow-hover); }
+    .card-title { font-size: 12px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.6px; }
+    .card-title .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--primary); }
+
+    /* 供应商卡片 */
+    .provider-item { background: var(--bg-inner); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; transition: all 0.2s; }
+    .provider-item.active { border-color: var(--primary); background: var(--primary-dim); box-shadow: 0 0 0 3px rgba(59,130,246,0.08); }
+    .provider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .provider-name { font-weight: 600; font-size: 14px; color: var(--text); }
+    .provider-model { color: var(--text-muted); font-size: 12px; margin-left: 6px; }
+    .badge { font-size: 11px; padding: 3px 10px; border-radius: 10px; font-weight: 600; }
+    .badge-active { background: rgba(34,197,94,0.1); color: #16a34a; }
+    .badge-inactive { background: var(--bg-sidebar); color: var(--text-muted); }
+
+    /* 表单 */
+    .form-group { margin-bottom: 10px; }
+    .form-group label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; font-weight: 500; }
+    .form-group input { width: 100%; padding: 8px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; transition: border-color 0.2s; }
+    .form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+
+    /* 按钮 */
+    .btn { padding: 7px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+    .btn-primary { background: var(--primary); color: white; }
+    .btn-primary:hover { background: #2563eb; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(59,130,246,0.3); }
+    .btn-secondary { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--bg-sidebar); color: var(--text); }
+    .actions { display: flex; gap: 8px; margin-top: 10px; }
+
+    /* 模型选择下拉 */
+    .model-select { width: 100%; padding: 8px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; transition: border-color 0.2s; cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2394a3b8' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 30px; }
+    .model-select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .custom-model-input { width: 100%; padding: 8px 12px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; outline: none; transition: border-color 0.2s; margin-top: 6px; }
+    .custom-model-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+
+    /* 统计数字 */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-item { background: var(--bg-inner); border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 16px; text-align: center; }
+    .stat-value { font-size: 22px; font-weight: 700; background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-weight: 500; }
+
+    /* 余额 */
+    .balance-item { background: var(--bg-inner); border: 1px solid var(--border-light); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+    .balance-provider { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+    .balance-amount { font-size: 20px; font-weight: 700; background: linear-gradient(135deg, var(--primary), #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .balance-amount.low { background: linear-gradient(135deg, #ef4444, #f97316); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+
+    /* 图表 */
+    .chart-container { background: var(--bg-inner); border-radius: var(--radius-sm); padding: 16px; }
+    .chart-title { font-size: 11px; color: var(--text-muted); margin-bottom: 12px; font-weight: 500; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 4px; height: 100px; }
+    .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+    .bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 2px; transition: height 0.5s ease; }
+    .bar-label { font-size: 10px; color: var(--text-muted); }
+
+    /* 表格 */
+    .recent-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+    .recent-table th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 8px; border-bottom: 1px solid var(--border); font-size: 11px; }
+    .recent-table td { padding: 7px 8px; border-bottom: 1px solid var(--border-light); color: var(--text-secondary); }
+    .provider-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; }
+
+    /* Toast */
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(10px); background: var(--text); color: white; padding: 10px 24px; border-radius: 10px; font-size: 14px; opacity: 0; transition: all 0.3s; z-index: 100; }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* 空状态 */
+    .no-data { text-align: center; color: var(--text-muted); padding: 24px; font-size: 13px; }
+
+    /* 帮助区 */
+    .help { padding: 14px 16px; background: var(--bg-inner); border-radius: var(--radius-sm); font-size: 12px; line-height: 1.8; color: var(--text-muted); border: 1px solid var(--border-light); }
+    .help strong { color: var(--text-secondary); }
+    .help code { background: var(--bg-card); padding: 1px 6px; border-radius: 4px; font-size: 11px; color: var(--primary); border: 1px solid var(--border); }
+
+    /* 版权 */
+    .footer { text-align: center; padding: 16px; font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--border); background: var(--bg-card); }
+    .footer a { color: var(--primary); text-decoration: none; }
+    .footer a:hover { text-decoration: underline; }
+
+    /* 响应式 */
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      .col-left, .col-right { max-height: none; border: none; border-bottom: 1px solid var(--border); }
+      .col-center { max-height: none; }
+    }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Codex <span>Model Switcher</span></h1>
-    <p class="subtitle" id="subtitle">加载中...</p>
+  <!-- 顶部导航 -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-icon"><svg viewBox="0 0 24 24" width="18" height="18" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="logo">AI <span>Model Switcher</span></div>
+      <span class="version" id="version">v1.1.0</span>
+    </div>
+    <div class="header-right">
+      <div class="header-dot"></div>
+      当前模型: <b id="active-name">-</b>
+    </div>
+  </div>
 
-    <div class="card">
-      <div class="card-title"><div class="dot dot-green"></div>模型供应商</div>
-      <div class="provider-grid" id="providers"></div>
+  <!-- 三栏布局 -->
+  <div class="layout">
+    <!-- 左栏: 模型供应商 -->
+    <div class="col-left">
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>模型供应商</div>
+        <div id="providers" style="display:grid;gap:10px"></div>
+      </div>
+      <div class="help">
+        <strong>配置说明</strong><br>
+        编辑 <code>~/.codex/config.toml</code><br>
+        设置 <code>base_url = "http://127.0.0.1:11435/v1"</code><br><br>
+        点击"切换"即时生效，无需重启。
+      </div>
     </div>
 
-    <div class="card" id="usage-card">
-      <div class="card-title"><div class="dot dot-green"></div>用量统计</div>
-      <div id="usage-content"><div class="no-data">加载中...</div></div>
+    <!-- 中栏: 用量统计 -->
+    <div class="col-center">
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>用量概览</div>
+        <div id="usage-content"><div class="no-data">加载中...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>最近 7 天</div>
+        <div id="chart-content"><div class="no-data">暂无数据</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>最近请求</div>
+        <div id="recent-content"><div class="no-data">暂无请求记录</div></div>
+      </div>
     </div>
 
-    <div class="help">
-      <strong>配置 Codex CLI:</strong><br>
-      编辑 <code>~/.codex/config.toml</code>，设置 <code>base_url = "http://127.0.0.1:11435/v1"</code><br><br>
-      <strong>切换模型:</strong><br>
-      在上方点击"切换"按钮，下一个请求立即生效，无需重启 Codex。
+    <!-- 右栏: 余额 + 各供应商 -->
+    <div class="col-right">
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>账户余额</div>
+        <div id="balance-content"><div class="no-data">加载中...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><div class="dot"></div>供应商统计</div>
+        <div id="provider-stats"><div class="no-data">暂无数据</div></div>
+      </div>
     </div>
+  </div>
+
+  <!-- 版权信息 -->
+  <div class="footer">
+    &copy; 2025 AI Model Switcher &middot; <a href="https://ams.yr8.net" target="_blank">ams.yr8.net</a>
   </div>
 
   <div class="toast" id="toast"></div>
 
   <script>
-    const COLORS = { deepseek: '#10a37f', zhipu: '#f59e0b', default: '#6366f1' };
+    const COLORS = { deepseek: '#3b82f6', zhipu: '#f59e0b', default: '#8b5cf6' };
     function getColor(p) { return COLORS[p] || COLORS.default; }
     function fmt(n) { return n >= 1000000 ? (n/1000000).toFixed(1)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'K' : String(n); }
 
@@ -99,7 +213,8 @@
       try {
         const res = await fetch('/admin/api/status');
         const data = await res.json();
-        document.getElementById('subtitle').textContent = `v${data.version} · 当前: ${data.providers[data.activeProvider]?.name || data.activeProvider}`;
+        document.getElementById('version').textContent = 'v' + data.version;
+        document.getElementById('active-name').textContent = data.providers[data.activeProvider]?.name || data.activeProvider;
         renderProviders(data);
       } catch {}
     }
@@ -109,35 +224,194 @@
         const res = await fetch('/admin/api/usage');
         const data = await res.json();
         renderUsage(data);
+        renderChart(data);
+        renderRecent(data);
+        renderProviderStats(data);
       } catch {}
     }
 
+    async function loadBalance() {
+      try {
+        const res = await fetch('/admin/api/balance');
+        const data = await res.json();
+        renderBalance(data);
+      } catch {}
+    }
+
+    function renderBalance(data) {
+      const el = document.getElementById('balance-content');
+      let html = '';
+      for (const [id, info] of Object.entries(data)) {
+        if (info.error) {
+          html += `<div class="balance-item"><div class="balance-provider">${info.provider}</div><div style="font-size:13px;color:var(--text-muted)">查询失败</div></div>`;
+          continue;
+        }
+        const raw = info.raw;
+
+        // DeepSeek 余额格式: balance_infos[{currency, total_balance, ...}]
+        if (raw.balance_infos) {
+          for (const b of raw.balance_infos) {
+            const total = parseFloat(b.total_balance || 0).toFixed(2);
+            const currency = b.currency === 'CNY' ? '¥' : '$';
+            const isLow = parseFloat(b.total_balance || 0) < 1;
+            html += `<div class="balance-item"><div style="display:flex;align-items:center;gap:6px"><div style="width:20px;height:20px;border-radius:4px;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">${getIcon(id)}</div><div class="balance-provider">${info.provider}</div></div><div class="balance-amount ${isLow ? 'low' : ''}">${currency}${total}</div></div>`;
+          }
+        }
+        // 智谱 Coding Plan 配额格式: data.limits[{type, unit, number, percentage, remaining, ...}]
+        else if (raw.data && raw.data.limits) {
+          html += `<div class="balance-item" style="flex-direction:column;align-items:flex-start;gap:10px"><div style="display:flex;align-items:center;gap:6px"><div style="width:20px;height:20px;border-radius:4px;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">${getIcon(id)}</div><div class="balance-provider">${info.provider} Coding Plan</div></div>`;
+          for (const item of raw.data.limits) {
+            const pct = item.percentage != null ? item.percentage : 0;
+            const isTime = item.type === 'TIME_LIMIT';
+            let label = '';
+            if (isTime) {
+              label = `${item.unit}小时额度`;
+            } else {
+              // TOKENS_LIMIT
+              if (item.unit <= 24) label = `${item.unit}小时 Token`;
+              else label = `${Math.round(item.unit / 24)}天 Token`;
+            }
+            const remaining = item.remaining != null ? `剩余 ${Math.round(item.remaining / 60)}分钟` : '';
+            const color = pct > 80 ? 'var(--text-muted)' : pct > 50 ? '#f59e0b' : '#22c55e';
+            const barWidth = Math.max(2, Math.min(100, pct));
+            const resetTime = item.nextResetTime ? new Date(item.nextResetTime) : null;
+            const resetStr = resetTime ? `重置于 ${resetTime.toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'})}` : '';
+            html += `<div style="width:100%">
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+                <span style="color:var(--text-secondary)">${label}</span>
+                <span style="color:${color};font-weight:600">${pct}%${remaining ? ' · ' + remaining : ''}</span>
+              </div>
+              <div style="background:var(--border-light);border-radius:4px;height:6px;overflow:hidden">
+                <div style="width:${barWidth}%;height:100%;background:${color};border-radius:4px;transition:width 0.5s"></div>
+              </div>
+              ${resetStr ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">${resetStr}</div>` : ''}
+            </div>`;
+          }
+          html += '</div>';
+        }
+        // 智谱其他格式
+        else if (raw.data && typeof raw.data === 'object') {
+          const d = raw.data;
+          const total = d.total_balance ?? d.balance ?? d.account_balance ?? '-';
+          const unit = typeof total === 'number' ? '¥' + total.toFixed(2) : total;
+          html += `<div class="balance-item"><div class="balance-provider">${info.provider}</div><div class="balance-amount">${unit}</div></div>`;
+        }
+        else {
+          html += `<div class="balance-item"><div class="balance-provider">${info.provider}</div><div style="font-size:13px;color:var(--text-muted)">-</div></div>`;
+        }
+      }
+      el.innerHTML = html || '<div class="no-data">暂无余额信息</div>';
+    }
+
+    // 缓存供应商支持的模型列表
+    let providerModels = {};
+
+    // 供应商 Logo（内联 SVG）
+    const PROVIDER_ICONS = {
+      deepseek: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="11" fill="#4D6BFE" /><path d="M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm4.2 12.6c-.3.3-.8.3-1.1 0L12 12.5l-3.1 3.1c-.3.3-.8.3-1.1 0-.3-.3-.3-.8 0-1.1L10.9 11 7.8 7.9c-.3-.3-.3-.8 0-1.1.3-.3.8-.3 1.1 0L12 9.9l3.1-3.1c.3-.3.8-.3 1.1 0 .3.3.3.8 0 1.1L13.1 11l3.1 3.1c.3.3.3.8 0 1.1z" fill="none"/><path d="M7.5 7.5C8.8 5.5 10.3 4.5 12 4.5c2.5 0 4.5 2 4.5 4.5 0 1.5-.7 2.8-1.8 3.6" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M16.5 16.5C15.2 18.5 13.7 19.5 12 19.5c-2.5 0-4.5-2-4.5-4.5 0-1.5.7-2.8 1.8-3.6" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>`,
+      zhipu: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="6" fill="#3D5AFE"/><path d="M7 8h2v8H7V8zm4 0h2v3h3V8h2v8h-2v-3h-3v3h-2V8z" fill="#fff"/></svg>`,
+      default: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#8b5cf6"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="12" font-weight="700">AI</text></svg>`,
+    };
+
+    function getIcon(p) { return PROVIDER_ICONS[p] || PROVIDER_ICONS.default; }
+
+    async function loadModels() {
+      try {
+        const res = await fetch('/admin/api/models');
+        providerModels = await res.json();
+        renderProviders(lastStatus);
+      } catch {}
+    }
+
+    let lastStatus = {};
+
     function renderProviders(data) {
+      if (data) lastStatus = data;
       const container = document.getElementById('providers');
       container.innerHTML = '';
       for (const [id, prov] of Object.entries(data.providers)) {
         const isActive = prov.active;
+        const models = providerModels[id]?.models || [];
+        const currentModel = prov.model;
+        const isKnown = models.includes(currentModel);
+
+        let selectHtml = `<select id="model-${id}" class="model-select" onchange="onModelChange('${id}')">`;
+        if (models.length > 0) {
+          // 当前模型不在列表中，额外显示
+          if (!isKnown && currentModel) {
+            selectHtml += `<option value="${currentModel}" selected>${currentModel} (当前)</option>`;
+          }
+          for (const m of models) {
+            const selected = (m === currentModel) ? 'selected' : '';
+            selectHtml += `<option value="${m}" ${selected}>${m}</option>`;
+          }
+          selectHtml += `<option value="__custom__">自定义...</option>`;
+        } else {
+          // 还没获取到模型列表，显示当前模型 + 手动输入
+          if (currentModel) {
+            selectHtml += `<option value="${currentModel}" selected>${currentModel}</option>`;
+          }
+          selectHtml += `<option value="__custom__">自定义...</option>`;
+        }
+        selectHtml += '</select>';
+
         const div = document.createElement('div');
         div.className = `provider-item ${isActive ? 'active' : ''}`;
         div.innerHTML = `
           <div class="provider-header">
-            <div>
-              <span class="provider-name">${prov.name}</span>
-              <span class="provider-model">${prov.model}</span>
+            <div style="display:flex;align-items:center;gap:8px">
+              <div style="width:28px;height:28px;border-radius:6px;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">${getIcon(id)}</div>
+              <div>
+                <div class="provider-name">${prov.name}</div>
+              </div>
             </div>
             <span class="badge ${isActive ? 'badge-active' : 'badge-inactive'}">${isActive ? '使用中' : '未启用'}</span>
+          </div>
+          <div class="form-group">
+            <label>模型版本${models.length ? ` (${models.length} 个可用)` : ''}</label>
+            ${selectHtml}
+            <input type="text" id="custom-model-${id}" class="custom-model-input" placeholder="输入模型名称" style="display:none">
           </div>
           <div class="form-group">
             <label>API Key</label>
             <input type="password" id="key-${id}" value="${prov.configured ? '••••••••' : ''}" placeholder="输入 API Key">
           </div>
           <div class="actions">
-            ${!isActive ? `<button class="btn btn-primary btn-switch" onclick="switchTo('${id}')">切换</button>` : ''}
+            ${!isActive ? `<button class="btn btn-primary" onclick="switchTo('${id}')">切换</button>` : ''}
             <button class="btn btn-secondary" onclick="saveKey('${id}')">保存 Key</button>
           </div>
         `;
         container.appendChild(div);
       }
+    }
+
+    function onModelChange(provider) {
+      const select = document.getElementById(`model-${provider}`);
+      const customInput = document.getElementById(`custom-model-${provider}`);
+      if (select.value === '__custom__') {
+        customInput.style.display = 'block';
+        customInput.focus();
+      } else {
+        customInput.style.display = 'none';
+        saveModel(provider, select.value);
+      }
+    }
+
+    async function saveModel(provider, model) {
+      const select = document.getElementById(`model-${provider}`);
+      if (select.value === '__custom__') {
+        const customInput = document.getElementById(`custom-model-${provider}`);
+        model = customInput.value.trim();
+        if (!model) { toast('请输入模型名称'); return; }
+      }
+      const res = await fetch('/admin/api/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [`providers.${provider}.model`]: model })
+      });
+      const data = await res.json();
+      if (data.ok) { toast(`模型已切换为 ${model}`); loadStatus(); }
+      else { toast(data.error || '保存失败'); }
     }
 
     function renderUsage(data) {
@@ -146,57 +420,64 @@
         el.innerHTML = '<div class="no-data">暂无使用数据，发送请求后将自动统计</div>';
         return;
       }
-
-      const providers = Object.entries(data.providers || {});
-      let html = `
-        <div class="stats-grid">
+      el.innerHTML = `
+        <div class="stat-grid">
           <div class="stat-item"><div class="stat-value">${fmt(data.totalTokens)}</div><div class="stat-label">总 Token</div></div>
+          <div class="stat-item"><div class="stat-value">${data.totalRequests}</div><div class="stat-label">请求数</div></div>
           <div class="stat-item"><div class="stat-value">${fmt(data.totalInputTokens)}</div><div class="stat-label">输入 Token</div></div>
           <div class="stat-item"><div class="stat-value">${fmt(data.totalOutputTokens)}</div><div class="stat-label">输出 Token</div></div>
-          <div class="stat-item"><div class="stat-value">${data.totalRequests}</div><div class="stat-label">总请求数</div></div>
         </div>
       `;
+    }
 
-      // 各供应商统计
-      if (providers.length > 0) {
-        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:16px">';
-        for (const [name, p] of providers) {
-          html += `<div style="background:#111;border-radius:8px;padding:12px;border-left:3px solid ${getColor(name)}">
-            <div style="font-weight:600;font-size:14px">${name}</div>
-            <div style="color:#888;font-size:12px;margin-top:4px">${p.requestCount} 次请求 · ${fmt(p.totalInput + p.totalOutput)} tokens</div>
-          </div>`;
-        }
-        html += '</div>';
-      }
-
-      // 7 天柱状图
+    function renderChart(data) {
+      const el = document.getElementById('chart-content');
       const days = Object.entries(data.last7days || {});
-      if (days.length > 0) {
-        let maxTokens = 0;
-        const dayData = days.map(([date, provs]) => {
-          const total = Object.values(provs).reduce((s, v) => s + v.input + v.output, 0);
-          if (total > maxTokens) maxTokens = total;
-          return { date: date.slice(5), total, provs };
-        });
-        html += '<div class="chart-container"><div class="chart-title">最近 7 天</div><div class="bar-chart">';
-        for (const d of dayData) {
-          const h = maxTokens ? Math.max(2, (d.total / maxTokens) * 100) : 2;
-          html += `<div class="bar-group"><div class="bar" style="height:${h}%;background:${d.total ? '#10a37f' : '#2a2a2a'}"></div><div class="bar-label">${d.date}</div></div>`;
-        }
-        html += '</div></div>';
+      if (!days.length || !data.totalRequests) { el.innerHTML = '<div class="no-data">暂无数据</div>'; return; }
+      let maxTokens = 0;
+      const dayData = days.map(([date, provs]) => {
+        const total = Object.values(provs).reduce((s, v) => s + v.input + v.output, 0);
+        if (total > maxTokens) maxTokens = total;
+        return { date: date.slice(5), total, provs };
+      });
+      let html = '<div class="chart-container"><div class="bar-chart">';
+      for (const d of dayData) {
+        const h = maxTokens ? Math.max(2, (d.total / maxTokens) * 100) : 2;
+        const bg = d.total ? 'linear-gradient(to top, #3b82f6, #8b5cf6)' : 'var(--border-light)';
+        html += `<div class="bar-group"><div class="bar" style="height:${h}%;background:${bg}"></div><div class="bar-label">${d.date}</div></div>`;
       }
+      html += '</div></div>';
+      el.innerHTML = html;
+    }
 
-      // 最近请求
+    function renderRecent(data) {
+      const el = document.getElementById('recent-content');
       const recent = data.recentRequests || [];
-      if (recent.length > 0) {
-        html += '<div style="overflow-x:auto"><table class="recent-table"><thead><tr><th>时间</th><th>供应商</th><th>模型</th><th>输入</th><th>输出</th></tr></thead><tbody>';
-        for (const r of recent.slice(0, 15)) {
-          const time = r.time ? r.time.slice(11, 19) : '-';
-          html += `<tr><td>${time}</td><td><span class="provider-dot" style="background:${getColor(r.provider)}"></span>${r.provider}</td><td>${r.model || '-'}</td><td>${fmt(r.input)}</td><td>${fmt(r.output)}</td></tr>`;
-        }
-        html += '</tbody></table></div>';
+      if (!recent.length) { el.innerHTML = '<div class="no-data">暂无请求记录</div>'; return; }
+      let html = '<div style="overflow-x:auto"><table class="recent-table"><thead><tr><th>时间</th><th>供应商</th><th>模型</th><th>输入</th><th>输出</th></tr></thead><tbody>';
+      for (const r of recent.slice(0, 20)) {
+        const time = r.time ? r.time.slice(11, 19) : '-';
+        html += `<tr><td>${time}</td><td><span class="provider-dot" style="background:${getColor(r.provider)}"></span>${r.provider}</td><td>${r.model || '-'}</td><td>${fmt(r.input)}</td><td>${fmt(r.output)}</td></tr>`;
       }
+      html += '</tbody></table></div>';
+      el.innerHTML = html;
+    }
 
+    function renderProviderStats(data) {
+      const el = document.getElementById('provider-stats');
+      const provs = Object.entries(data.providers || {});
+      if (!provs.length || !data.totalRequests) { el.innerHTML = '<div class="no-data">暂无数据</div>'; return; }
+      let html = '';
+      for (const [name, p] of provs) {
+        html += `<div style="background:var(--bg-inner);border-radius:8px;padding:12px 14px;margin-bottom:8px;border-left:3px solid ${getColor(name)}">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <div style="width:20px;height:20px;border-radius:4px;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center">${getIcon(name)}</div>
+            <div style="font-weight:600;font-size:13px;color:var(--text)">${name}</div>
+          </div>
+          <div style="color:var(--text-muted);font-size:12px">${p.requestCount} 次请求</div>
+          <div style="color:var(--text-muted);font-size:12px">输入 ${fmt(p.totalInput)} · 输出 ${fmt(p.totalOutput)}</div>
+        </div>`;
+      }
       el.innerHTML = html;
     }
 
@@ -221,14 +502,18 @@
         body: JSON.stringify({ [`providers.${provider}.apiKey`]: key })
       });
       const data = await res.json();
-      if (data.ok) { toast('Key 已保存'); loadStatus(); }
+      if (data.ok) { toast('Key 已保存，正在获取模型列表...'); loadStatus(); loadModels(); }
       else { toast(data.error || '保存失败'); }
     }
 
     loadStatus();
     loadUsage();
+    loadBalance();
+    loadModels();
     setInterval(loadStatus, 10000);
     setInterval(loadUsage, 30000);
+    setInterval(loadBalance, 60000);
+    setInterval(loadModels, 300000);
   </script>
 </body>
 </html>

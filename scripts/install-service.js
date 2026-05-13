@@ -15,47 +15,43 @@ const HOME = homedir();
 const LAUNCH_AGENTS = resolve(HOME, 'Library/LaunchAgents');
 
 const PLIST_NAME = 'com.codex-model-switcher.proxy.plist';
-const SCRIPT_NAME = 'start-codex-model-switcher.sh';
+
+// 获取 node 可执行文件的绝对路径
+const NODE_PATH = process.execPath;
+const SERVER_PATH = resolve(ROOT, 'src/server.js');
 
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 const ask = (q) => new Promise(r => rl.question(q, r));
 
 console.log('==========================================');
-console.log('  Codex Model Switcher — 一键安装');
+console.log('  AI Model Switcher — 一键安装');
 console.log('==========================================\n');
 
 // 1. 安装依赖
 if (!existsSync(resolve(ROOT, 'node_modules'))) {
-  console.log('[1/4] 安装依赖...');
+  console.log('[1/3] 安装依赖...');
   execSync('npm install', { cwd: ROOT, stdio: 'inherit' });
 } else {
-  console.log('[1/4] 依赖已安装 ✓');
+  console.log('[1/3] 依赖已安装 ✓');
 }
 
-// 2. 写启动脚本
-console.log('\n[2/4] 创建启动脚本...');
-const scriptContent = `#!/bin/bash
-# Codex Model Switcher 启动脚本
-cd "${ROOT}"
-exec node src/server.js
-`;
-writeFileSync(resolve(ROOT, 'scripts', SCRIPT_NAME), scriptContent);
-execSync(`chmod +x "${resolve(ROOT, 'scripts', SCRIPT_NAME)}"`);
-console.log('  ✓ 启动脚本已创建');
-
-// 3. 写 LaunchAgent
-console.log('\n[3/4] 注册开机自启服务...');
+// 2. 写 LaunchAgent（直接调用 node，不走 bash 脚本）
+console.log('\n[2/3] 注册开机自启服务...');
+console.log(`  Node 路径: ${NODE_PATH}`);
+console.log(`  服务路径: ${SERVER_PATH}`);
 const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.codex-model-switcher.proxy</string>
+    <string>com.ai-model-switcher.proxy</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/bin/bash</string>
-        <string>${resolve(ROOT, 'scripts', SCRIPT_NAME)}</string>
+        <string>${NODE_PATH}</string>
+        <string>${SERVER_PATH}</string>
     </array>
+    <key>WorkingDirectory</key>
+    <string>${ROOT}</string>
     <key>RunAtLoad</key>
     <true/>
     <key>KeepAlive</key>
@@ -68,6 +64,8 @@ const plistContent = `<?xml version="1.0" encoding="UTF-8"?>
     <dict>
         <key>PATH</key>
         <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <key>HOME</key>
+        <string>${HOME}</string>
     </dict>
 </dict>
 </plist>
@@ -83,7 +81,7 @@ execSync(`launchctl bootstrap gui/$(id -u) ${resolve(LAUNCH_AGENTS, PLIST_NAME)}
 console.log('  ✓ 服务已启动');
 
 // 4. 自动配置 Codex
-console.log('\n[4/4] 配置 Codex...');
+console.log('\n[3/3] 配置 Codex...');
 
 const CODEX_CONFIG_PATH = resolve(HOME, '.codex/config.toml');
 
@@ -168,5 +166,5 @@ console.log(`  代理地址: http://127.0.0.1:11435/v1/responses`);
 console.log(`  管理界面: http://127.0.0.1:11435/admin`);
 console.log(`  日志查看: tail -f ${resolve(ROOT, 'proxy.log')}`);
 console.log('');
-console.log('  下一步：打开管理界面填入 API Key，然后重启 Codex');
+console.log('  下一步：打开管理界面填入 API Key，然后重启');
 console.log('==========================================');

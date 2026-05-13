@@ -11,6 +11,7 @@ dotenv.config({ path: resolve(ROOT, '.env') });
 
 // ---------- 默认配置 ----------
 const DEFAULTS = {
+  mainPort: 11435,
   providers: {
     deepseek: {
       name: 'DeepSeek',
