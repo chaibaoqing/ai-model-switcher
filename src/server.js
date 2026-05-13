@@ -11,6 +11,7 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config, getActiveProvider, setActiveProvider, save as saveConfig } from './config.js';
 import { SseTranslator } from './translator.js';
+import { recordUsage, getSummary } from './usage.js';
 import {
   extractText, translateTools,
   toChatMessages, toAnthropicMessages, toAnthropicTools
@@ -54,8 +55,21 @@ function httpsRequest(options, body) {
 // ---------- 路由分发 ----------
 
 function routeRequest(body) {
-  // 直接使用 activeProvider，由 Web 管理界面控制切换
   return getActiveProvider();
+}
+
+// 用量追踪装饰器 — 包装 SseTranslator.done() 自动记录 token
+function trackUsage(translator, provider, model) {
+  const origDone = translator.done.bind(translator);
+  translator.done = function(usage) {
+    const inputTokens = usage?.input_tokens ?? usage?.prompt_tokens ?? 0;
+    const outputTokens = usage?.output_tokens ?? usage?.completion_tokens ?? 0;
+    if (inputTokens || outputTokens) {
+      recordUsage(provider, inputTokens, outputTokens, model);
+    }
+    origDone(usage);
+  };
+  return translator;
 }
 
 // ---------- DeepSeek (Chat Completions) 处理 ----------
@@ -127,7 +141,7 @@ async function handleDeepSeek(body, provider, res) {
 
   // 流式
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-  const translator = new SseTranslator(res, prov.model);
+  const translator = trackUsage(new SseTranslator(res, prov.model), provider, prov.model);
   let buffer = '';
 
   dsReq.on('data', chunk => {
@@ -227,7 +241,7 @@ async function handleZhiPu(body, provider, res) {
 
   // 流式
   res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
-  const translator = new SseTranslator(res, prov.model);
+  const translator = trackUsage(new SseTranslator(res, prov.model), provider, prov.model);
   let buf = '';
 
   zRes.setEncoding('utf-8');
@@ -348,6 +362,12 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(400, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: e.message }));
     }
+  }
+
+  // API: 用量统计
+  if (req.method === 'GET' && path === '/admin/api/usage') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify(getSummary()));
   }
 
   // 健康检查

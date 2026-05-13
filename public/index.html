@@ -7,7 +7,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; }
-    .container { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
     h1 { font-size: 24px; margin-bottom: 8px; }
     h1 span { color: #10a37f; }
     .subtitle { color: #888; margin-bottom: 32px; font-size: 14px; }
@@ -15,8 +15,6 @@
     .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
     .card-title .dot { width: 8px; height: 8px; border-radius: 50%; }
     .dot-green { background: #10a37f; }
-    .dot-yellow { background: #f59e0b; }
-    .dot-gray { background: #555; }
     .provider-grid { display: grid; gap: 16px; }
     .provider-item { background: #111; border: 1px solid #2a2a2a; border-radius: 8px; padding: 20px; transition: border-color 0.2s; }
     .provider-item.active { border-color: #10a37f; }
@@ -38,11 +36,26 @@
     .btn-secondary:hover { background: #3a3a3a; }
     .btn-switch { padding: 6px 14px; font-size: 13px; }
     .actions { display: flex; gap: 8px; margin-top: 12px; }
-    .status-bar { display: flex; gap: 16px; font-size: 13px; color: #888; margin-top: 16px; }
-    .toast { position: fixed; bottom: 20px; right: 20px; background: #10a37f; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity 0.3s; }
+    .toast { position: fixed; bottom: 20px; right: 20px; background: #10a37f; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 100; }
     .toast.show { opacity: 1; }
     .help { margin-top: 32px; padding: 20px; background: #111; border-radius: 8px; font-size: 13px; line-height: 1.8; }
     .help code { background: #1a1a1a; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    /* 用量统计 */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-item { background: #111; border: 1px solid #2a2a2a; border-radius: 8px; padding: 16px; text-align: center; }
+    .stat-value { font-size: 24px; font-weight: 700; color: #10a37f; }
+    .stat-label { font-size: 12px; color: #888; margin-top: 4px; }
+    .chart-container { background: #111; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .chart-title { font-size: 13px; color: #888; margin-bottom: 12px; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
+    .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .bar { width: 100%; border-radius: 4px 4px 0 0; min-height: 2px; transition: height 0.3s; }
+    .bar-label { font-size: 10px; color: #666; }
+    .recent-table { width: 100%; font-size: 13px; border-collapse: collapse; }
+    .recent-table th { text-align: left; color: #888; font-weight: 500; padding: 8px; border-bottom: 1px solid #2a2a2a; }
+    .recent-table td { padding: 8px; border-bottom: 1px solid #1a1a1a; }
+    .provider-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+    .no-data { text-align: center; color: #555; padding: 32px; font-size: 14px; }
   </style>
 </head>
 <body>
@@ -55,19 +68,26 @@
       <div class="provider-grid" id="providers"></div>
     </div>
 
+    <div class="card" id="usage-card">
+      <div class="card-title"><div class="dot dot-green"></div>用量统计</div>
+      <div id="usage-content"><div class="no-data">加载中...</div></div>
+    </div>
+
     <div class="help">
       <strong>配置 Codex CLI:</strong><br>
       编辑 <code>~/.codex/config.toml</code>，设置 <code>base_url = "http://127.0.0.1:11435/v1"</code><br><br>
-      <strong>配置 CCSwitch:</strong><br>
-      API 地址填写 <code>http://127.0.0.1:11435/v1</code><br><br>
       <strong>切换模型:</strong><br>
-      在上方点击"切换"按钮，然后重启 Codex 即可生效。
+      在上方点击"切换"按钮，下一个请求立即生效，无需重启 Codex。
     </div>
   </div>
 
   <div class="toast" id="toast"></div>
 
   <script>
+    const COLORS = { deepseek: '#10a37f', zhipu: '#f59e0b', default: '#6366f1' };
+    function getColor(p) { return COLORS[p] || COLORS.default; }
+    function fmt(n) { return n >= 1000000 ? (n/1000000).toFixed(1)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'K' : String(n); }
+
     function toast(msg) {
       const el = document.getElementById('toast');
       el.textContent = msg;
@@ -76,10 +96,20 @@
     }
 
     async function loadStatus() {
-      const res = await fetch('/admin/api/status');
-      const data = await res.json();
-      document.getElementById('subtitle').textContent = `v${data.version} · 默认: ${data.providers[data.activeProvider]?.name || data.activeProvider}`;
-      renderProviders(data);
+      try {
+        const res = await fetch('/admin/api/status');
+        const data = await res.json();
+        document.getElementById('subtitle').textContent = `v${data.version} · 当前: ${data.providers[data.activeProvider]?.name || data.activeProvider}`;
+        renderProviders(data);
+      } catch {}
+    }
+
+    async function loadUsage() {
+      try {
+        const res = await fetch('/admin/api/usage');
+        const data = await res.json();
+        renderUsage(data);
+      } catch {}
     }
 
     function renderProviders(data) {
@@ -110,6 +140,66 @@
       }
     }
 
+    function renderUsage(data) {
+      const el = document.getElementById('usage-content');
+      if (!data.totalRequests) {
+        el.innerHTML = '<div class="no-data">暂无使用数据，发送请求后将自动统计</div>';
+        return;
+      }
+
+      const providers = Object.entries(data.providers || {});
+      let html = `
+        <div class="stats-grid">
+          <div class="stat-item"><div class="stat-value">${fmt(data.totalTokens)}</div><div class="stat-label">总 Token</div></div>
+          <div class="stat-item"><div class="stat-value">${fmt(data.totalInputTokens)}</div><div class="stat-label">输入 Token</div></div>
+          <div class="stat-item"><div class="stat-value">${fmt(data.totalOutputTokens)}</div><div class="stat-label">输出 Token</div></div>
+          <div class="stat-item"><div class="stat-value">${data.totalRequests}</div><div class="stat-label">总请求数</div></div>
+        </div>
+      `;
+
+      // 各供应商统计
+      if (providers.length > 0) {
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;margin-bottom:16px">';
+        for (const [name, p] of providers) {
+          html += `<div style="background:#111;border-radius:8px;padding:12px;border-left:3px solid ${getColor(name)}">
+            <div style="font-weight:600;font-size:14px">${name}</div>
+            <div style="color:#888;font-size:12px;margin-top:4px">${p.requestCount} 次请求 · ${fmt(p.totalInput + p.totalOutput)} tokens</div>
+          </div>`;
+        }
+        html += '</div>';
+      }
+
+      // 7 天柱状图
+      const days = Object.entries(data.last7days || {});
+      if (days.length > 0) {
+        let maxTokens = 0;
+        const dayData = days.map(([date, provs]) => {
+          const total = Object.values(provs).reduce((s, v) => s + v.input + v.output, 0);
+          if (total > maxTokens) maxTokens = total;
+          return { date: date.slice(5), total, provs };
+        });
+        html += '<div class="chart-container"><div class="chart-title">最近 7 天</div><div class="bar-chart">';
+        for (const d of dayData) {
+          const h = maxTokens ? Math.max(2, (d.total / maxTokens) * 100) : 2;
+          html += `<div class="bar-group"><div class="bar" style="height:${h}%;background:${d.total ? '#10a37f' : '#2a2a2a'}"></div><div class="bar-label">${d.date}</div></div>`;
+        }
+        html += '</div></div>';
+      }
+
+      // 最近请求
+      const recent = data.recentRequests || [];
+      if (recent.length > 0) {
+        html += '<div style="overflow-x:auto"><table class="recent-table"><thead><tr><th>时间</th><th>供应商</th><th>模型</th><th>输入</th><th>输出</th></tr></thead><tbody>';
+        for (const r of recent.slice(0, 15)) {
+          const time = r.time ? r.time.slice(11, 19) : '-';
+          html += `<tr><td>${time}</td><td><span class="provider-dot" style="background:${getColor(r.provider)}"></span>${r.provider}</td><td>${r.model || '-'}</td><td>${fmt(r.input)}</td><td>${fmt(r.output)}</td></tr>`;
+        }
+        html += '</tbody></table></div>';
+      }
+
+      el.innerHTML = html;
+    }
+
     async function switchTo(provider) {
       const res = await fetch('/admin/api/switch', {
         method: 'POST',
@@ -117,12 +207,8 @@
         body: JSON.stringify({ provider })
       });
       const data = await res.json();
-      if (data.ok) {
-        toast(`已切换到 ${provider}`);
-        loadStatus();
-      } else {
-        toast(data.error || '切换失败');
-      }
+      if (data.ok) { toast(`已切换到 ${provider}`); loadStatus(); }
+      else { toast(data.error || '切换失败'); }
     }
 
     async function saveKey(provider) {
@@ -140,7 +226,9 @@
     }
 
     loadStatus();
+    loadUsage();
     setInterval(loadStatus, 10000);
+    setInterval(loadUsage, 30000);
   </script>
 </body>
 </html>
