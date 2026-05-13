@@ -45,7 +45,7 @@ function httpsRequest(options, body) {
     opts.headers['Content-Length'] = Buffer.byteLength(payload);
     const req = https.request(opts, ok);
     req.on('error', fail);
-    req.setTimeout(120000, () => { req.destroy(); fail(new Error('timeout')); });
+    req.setTimeout(300000, () => { req.destroy(); fail(new Error('timeout')); });
     req.write(payload);
     req.end();
   });
@@ -54,15 +54,7 @@ function httpsRequest(options, body) {
 // ---------- 路由分发 ----------
 
 function routeRequest(body) {
-  // 如果请求指定了 model，根据模型名匹配 provider
-  const model = (body.model || '').toLowerCase();
-  for (const [name, prov] of Object.entries(providers)) {
-    if (!prov.apiKey) continue;
-    if (model.includes(name) || prov.model.toLowerCase() === model) {
-      return name;
-    }
-  }
-  // 默认使用 activeProvider
+  // 直接使用 activeProvider，由 Web 管理界面控制切换
   return getActiveProvider();
 }
 
