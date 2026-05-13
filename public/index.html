@@ -123,6 +123,11 @@
     .footer a { color: var(--primary); text-decoration: none; }
     .footer a:hover { text-decoration: underline; }
 
+    /* 用量 Tab 按钮 */
+    .usage-tab { flex: 1; padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text-secondary); background: transparent; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 4px; white-space: nowrap; }
+    .usage-tab:hover { color: var(--text); background: var(--bg-card); }
+    .usage-tab.active { background: var(--bg-card); color: var(--primary); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+
     /* 响应式 */
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
@@ -306,14 +311,17 @@
     // 缓存供应商支持的模型列表
     let providerModels = {};
 
-    // 供应商 Logo（内联 SVG）
+    // 供应商 Logo
     const PROVIDER_ICONS = {
-      deepseek: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="11" fill="#4D6BFE" /><path d="M12 3C7.03 3 3 7.03 3 12s4.03 9 9 9 9-4.03 9-9-4.03-9-9-9zm4.2 12.6c-.3.3-.8.3-1.1 0L12 12.5l-3.1 3.1c-.3.3-.8.3-1.1 0-.3-.3-.3-.8 0-1.1L10.9 11 7.8 7.9c-.3-.3-.3-.8 0-1.1.3-.3.8-.3 1.1 0L12 9.9l3.1-3.1c.3-.3.8-.3 1.1 0 .3.3.3.8 0 1.1L13.1 11l3.1 3.1c.3.3.3.8 0 1.1z" fill="none"/><path d="M7.5 7.5C8.8 5.5 10.3 4.5 12 4.5c2.5 0 4.5 2 4.5 4.5 0 1.5-.7 2.8-1.8 3.6" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M16.5 16.5C15.2 18.5 13.7 19.5 12 19.5c-2.5 0-4.5-2-4.5-4.5 0-1.5.7-2.8 1.8-3.6" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>`,
-      zhipu: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24" rx="6" fill="#3D5AFE"/><path d="M7 8h2v8H7V8zm4 0h2v3h3V8h2v8h-2v-3h-3v3h-2V8z" fill="#fff"/></svg>`,
-      default: `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#8b5cf6"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="12" font-weight="700">AI</text></svg>`,
+      deepseek: '/deepseek.svg',
+      zhipu: '/zhipu.svg',
     };
 
-    function getIcon(p) { return PROVIDER_ICONS[p] || PROVIDER_ICONS.default; }
+    function getIcon(p, size = 20) {
+      const src = PROVIDER_ICONS[p];
+      if (src) return `<img src="${src}" width="${size}" height="${size}" style="border-radius:4px" alt="${p}">`;
+      return `<div style="width:${size}px;height:${size}px;border-radius:4px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;color:white;font-size:${Math.round(size*0.5)}px;font-weight:700">AI</div>`;
+    }
 
     async function loadModels() {
       try {
@@ -414,20 +422,62 @@
       else { toast(data.error || '保存失败'); }
     }
 
+    let currentUsageTab = 'total';
+    let lastUsageData = {};
+
     function renderUsage(data) {
+      if (data) lastUsageData = data;
       const el = document.getElementById('usage-content');
-      if (!data.totalRequests) {
+      if (!lastUsageData.totalRequests) {
         el.innerHTML = '<div class="no-data">暂无使用数据，发送请求后将自动统计</div>';
         return;
       }
-      el.innerHTML = `
-        <div class="stat-grid">
-          <div class="stat-item"><div class="stat-value">${fmt(data.totalTokens)}</div><div class="stat-label">总 Token</div></div>
-          <div class="stat-item"><div class="stat-value">${data.totalRequests}</div><div class="stat-label">请求数</div></div>
-          <div class="stat-item"><div class="stat-value">${fmt(data.totalInputTokens)}</div><div class="stat-label">输入 Token</div></div>
-          <div class="stat-item"><div class="stat-value">${fmt(data.totalOutputTokens)}</div><div class="stat-label">输出 Token</div></div>
+
+      // Tab 按钮
+      const tabs = `
+        <div style="display:flex;gap:4px;margin-bottom:14px;background:var(--bg-inner);border-radius:8px;padding:3px;border:1px solid var(--border-light)">
+          <button class="usage-tab ${currentUsageTab === 'total' ? 'active' : ''}" onclick="switchUsageTab('total')">总用量</button>
+          <button class="usage-tab ${currentUsageTab === 'deepseek' ? 'active' : ''}" onclick="switchUsageTab('deepseek')">
+            ${getIcon('deepseek', 14)} DeepSeek
+          </button>
+          <button class="usage-tab ${currentUsageTab === 'zhipu' ? 'active' : ''}" onclick="switchUsageTab('zhipu')">
+            ${getIcon('zhipu', 14)} 智谱
+          </button>
         </div>
       `;
+
+      let tokens, requests, inputT, outputT;
+      if (currentUsageTab === 'total') {
+        tokens = lastUsageData.totalTokens;
+        requests = lastUsageData.totalRequests;
+        inputT = lastUsageData.totalInputTokens;
+        outputT = lastUsageData.totalOutputTokens;
+      } else {
+        const p = lastUsageData.providers?.[currentUsageTab];
+        if (p) {
+          tokens = p.totalInput + p.totalOutput;
+          requests = p.requestCount;
+          inputT = p.totalInput;
+          outputT = p.totalOutput;
+        } else {
+          tokens = 0; requests = 0; inputT = 0; outputT = 0;
+        }
+      }
+
+      el.innerHTML = `
+        ${tabs}
+        <div class="stat-grid">
+          <div class="stat-item"><div class="stat-value">${fmt(tokens)}</div><div class="stat-label">总 Token</div></div>
+          <div class="stat-item"><div class="stat-value">${requests}</div><div class="stat-label">请求数</div></div>
+          <div class="stat-item"><div class="stat-value">${fmt(inputT)}</div><div class="stat-label">输入 Token</div></div>
+          <div class="stat-item"><div class="stat-value">${fmt(outputT)}</div><div class="stat-label">输出 Token</div></div>
+        </div>
+      `;
+    }
+
+    function switchUsageTab(tab) {
+      currentUsageTab = tab;
+      renderUsage(lastUsageData);
     }
 
     function renderChart(data) {

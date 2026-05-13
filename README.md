@@ -19,7 +19,8 @@ Codex 使用 OpenAI Responses API 协议，而 DeepSeek 只提供 Chat Completio
 - **账户余额**：实时显示各供应商账户余额
 - **用量统计**：Token 消耗追踪、每供应商统计、7 天趋势图、请求历史
 - **工具调用**：完整支持 function calling，连贯执行不中断
-- **开机自启**：macOS LaunchAgent，关掉终端也不影响
+- **开机自启**：macOS LaunchAgent / Windows Task Scheduler
+- **跨平台**：支持 macOS 和 Windows
 - **配置向导**：交互式引导首次配置，一条命令搞定
 - **流式输出**：SSE 实时翻译，体验与原生一致
 
@@ -33,8 +34,8 @@ Codex 使用 OpenAI Responses API 协议，而 DeepSeek 只提供 Chat Completio
 ### 方式一：配置向导（推荐）
 
 ```bash
-git clone https://github.com/chaibaoqing/codex-model-switcher.git
-cd codex-model-switcher
+git clone https://github.com/chaibaoqing/ai-model-switcher.git
+cd ai-model-switcher
 npm install
 node scripts/setup-wizard.js
 ```
@@ -46,8 +47,8 @@ node scripts/setup-wizard.js
 ### 1. 克隆并安装
 
 ```bash
-git clone https://github.com/chaibaoqing/codex-model-switcher.git
-cd codex-model-switcher
+git clone https://github.com/chaibaoqing/ai-model-switcher.git
+cd ai-model-switcher
 npm install
 ```
 

@@ -185,13 +185,14 @@ ${preserved.join('\n').trim()}
     console.log('  设置 base_url = "http://127.0.0.1:11435/v1"');
   }
 
-  // 5. 安装服务
+  // 5. 安装服务（跨平台）
   banner('步骤 4/4: 开机自启');
 
   const autoService = await ask('  安装开机自启服务? (Y/n): ');
   if (autoService.trim().toLowerCase() !== 'n') {
     try {
       const { execSync } = await import('node:child_process');
+      const platform = await import('./platform/index.js');
 
       // 安装依赖
       if (!existsSync(resolve(ROOT, 'node_modules'))) {
@@ -199,46 +200,10 @@ ${preserved.join('\n').trim()}
         execSync('npm install', { cwd: ROOT, stdio: 'inherit' });
       }
 
-      // 写启动脚本
-      const SCRIPT_NAME = 'start-codex-model-switcher.sh';
-      writeFileSync(resolve(ROOT, 'scripts', SCRIPT_NAME), `#!/bin/bash\ncd "${ROOT}"\nexec node src/server.js\n`);
-      execSync(`chmod +x "${resolve(ROOT, 'scripts', SCRIPT_NAME)}"`);
-
-      // 写 LaunchAgent
-      const PLIST_NAME = 'com.codex-model-switcher.proxy.plist';
-      const LAUNCH_AGENTS = resolve(HOME, 'Library/LaunchAgents');
-      const plist = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.ai-model-switcher.proxy</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/bin/bash</string>
-        <string>${resolve(ROOT, 'scripts', SCRIPT_NAME)}</string>
-    </array>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>${resolve(ROOT, 'proxy.log')}</string>
-    <key>StandardErrorPath</key>
-    <string>${resolve(ROOT, 'proxy.log')}</string>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-    </dict>
-</dict>
-</plist>`;
-      writeFileSync(resolve(LAUNCH_AGENTS, PLIST_NAME), plist);
-
-      // 启动
-      try { execSync(`launchctl bootout gui/$(id -u) ${resolve(LAUNCH_AGENTS, PLIST_NAME)} 2>/dev/null`); } catch {}
-      execSync(`launchctl bootstrap gui/$(id -u) ${resolve(LAUNCH_AGENTS, PLIST_NAME)}`);
-      console.log('  ✓ 服务已启动');
+      // 使用平台抽象层安装
+      console.log(`  平台: ${platform.getPlatformName()}`);
+      platform.installService(ROOT, process.execPath, resolve(ROOT, 'src/server.js'));
+      console.log('  ✓ 服务已安装');
     } catch (e) {
       console.log(`  ✗ 安装失败: ${e.message}`);
       console.log('  你可以稍后运行: node scripts/install-service.js');

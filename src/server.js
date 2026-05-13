@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Codex Model Switcher — 多模型统一代理
+ * AI Model Switcher — 多模型统一代理
  * 让 Codex CLI / Desktop 无缝使用 DeepSeek、智谱 GLM 等模型
  */
 
@@ -362,6 +362,20 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
       return res.end('Admin UI error: ' + e.message);
     }
+  }
+
+  // 静态文件（SVG 等）
+  if (req.method === 'GET' && path.match(/^\/[\w-]+\.(svg|png|ico|css|js)$/)) {
+    try {
+      const filePath = resolve(ROOT, 'public', path.slice(1));
+      if (existsSync(filePath)) {
+        const ext = path.split('.').pop();
+        const mimeTypes = { svg: 'image/svg+xml', png: 'image/png', ico: 'image/x-icon', css: 'text/css', js: 'application/javascript' };
+        const data = readFileSync(filePath);
+        res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+        return res.end(data);
+      }
+    } catch {}
   }
 
   // API: 状态

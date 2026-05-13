@@ -73,7 +73,7 @@ set {NSStatusBar, NSStatusItem, NSMenu, NSMenuItem, NSImage, NSWorkspace} to ¬
 -- 创建状态栏项
 set statusBarItem to NSStatusBar's statusItemWithLength:(current application's NSVariableStatusItemLength)
 statusBarItem's button's setTitle:"🤖"
-statusBarItem's button's setToolTip:"Codex Model Switcher"
+statusBarItem's button's setToolTip:"AI Model Switcher"
 
 -- 创建菜单 (会在每次点击时刷新)
 set theMenu to current application's NSMenu's alloc()'s init()
@@ -117,7 +117,7 @@ current application's NSRunLoop's currentRunLoop()'s run()
 
 // 简单 CLI 模式
 async function cliMode() {
-  console.log('\n  Codex Model Switcher 菜单栏工具\n');
+  console.log('\n  AI Model Switcher 菜单栏工具\n');
   console.log('  命令:');
   console.log('    s - 查看状态');
   console.log('    o - 打开管理界面');
@@ -132,7 +132,10 @@ async function cliMode() {
       cmd = cmd.trim().toLowerCase();
 
       if (cmd === 'q') { rl.close(); return; }
-      if (cmd === 'o') { execSync(`open '${ADMIN_URL}'`); }
+      if (cmd === 'o') {
+          const platform = await import('./platform/index.js');
+          platform.openUrl(ADMIN_URL);
+        }
       if (cmd === 's' || cmd === '') {
         const status = await fetchStatus();
         if (status) {

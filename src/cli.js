@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * codex-model-switcher CLI 入口
+ * AI Model Switcher CLI 入口
  */
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
