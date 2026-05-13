@@ -145,8 +145,10 @@
       <span class="version" id="version">v1.2.0</span>
     </div>
     <div class="header-right">
-      <div class="header-dot"></div>
-      当前模型: <b id="active-name">-</b>
+      <div class="header-dot" id="service-dot"></div>
+      <span id="service-label">当前模型:</span> <b id="active-name">-</b>
+      <button class="btn btn-secondary" onclick="toggleService()" id="btn-toggle-service" style="margin-left:12px;font-size:12px;padding:4px 12px">暂停</button>
+      <button class="btn btn-secondary" onclick="restartService()" style="font-size:12px;padding:4px 12px;margin-left:4px">重启</button>
     </div>
   </div>
 
@@ -602,11 +604,71 @@
       btn.disabled = false;
     }
 
+    let servicePaused = false;
+
+    async function loadServiceStatus() {
+      try {
+        const res = await fetch('/admin/api/service-status');
+        const data = await res.json();
+        servicePaused = data.paused;
+        updateServiceUI();
+      } catch {}
+    }
+
+    function updateServiceUI() {
+      const dot = document.getElementById('service-dot');
+      const label = document.getElementById('service-label');
+      const btn = document.getElementById('btn-toggle-service');
+      if (servicePaused) {
+        dot.style.background = '#f59e0b';
+        label.textContent = '已暂停';
+        btn.textContent = '恢复';
+        btn.style.color = '#22c55e';
+      } else {
+        dot.style.background = '#22c55e';
+        label.textContent = '当前模型:';
+        btn.textContent = '暂停';
+        btn.style.color = '';
+      }
+    }
+
+    async function toggleService() {
+      const btn = document.getElementById('btn-toggle-service');
+      btn.disabled = true;
+      try {
+        const action = servicePaused ? 'service-resume' : 'service-pause';
+        const res = await fetch(`/admin/api/${action}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+          servicePaused = data.paused;
+          updateServiceUI();
+          toast(servicePaused ? '服务已暂停' : '服务已恢复');
+        }
+      } catch (e) {
+        toast('操作失败: ' + e.message);
+      }
+      btn.disabled = false;
+    }
+
+    async function restartService() {
+      if (!confirm('确定要重启服务吗？')) return;
+      toast('正在重启...');
+      try {
+        await fetch('/admin/api/service-restart', { method: 'POST' });
+        // 等待服务重启
+        setTimeout(() => { location.reload(); }, 3000);
+      } catch {
+        // 请求本身会因为进程退出而失败，这是正常的
+        setTimeout(() => { location.reload(); }, 3000);
+      }
+    }
+
     loadStatus();
     loadUsage();
     loadBalance();
     loadModels();
     loadCodexStatus();
+    loadServiceStatus();
     setInterval(loadStatus, 10000);
     setInterval(loadUsage, 30000);
     setInterval(loadBalance, 60000);

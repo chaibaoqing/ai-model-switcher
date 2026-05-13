@@ -9,6 +9,7 @@ import https from 'node:https';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { config, getActiveProvider, setActiveProvider, save as saveConfig } from './config.js';
 import { SseTranslator } from './translator.js';
@@ -23,6 +24,9 @@ const ROOT = resolve(__dirname, '..');
 
 const VERSION = '1.2.0';
 const providers = config.providers;
+
+// ---------- 服务状态 ----------
+let servicePaused = false;
 
 // ---------- 工具函数 ----------
 
@@ -595,6 +599,53 @@ stream_idle_timeout_ms = 300000
       res.writeHead(500, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: e.message }));
     }
+  }
+
+  // API: 服务状态
+  if (req.method === 'GET' && path === '/admin/api/service-status') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ paused: servicePaused, version: VERSION }));
+  }
+
+  // API: 暂停服务
+  if (req.method === 'POST' && path === '/admin/api/service-pause') {
+    servicePaused = true;
+    log('admin', '服务已暂停');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true, paused: true }));
+  }
+
+  // API: 恢复服务
+  if (req.method === 'POST' && path === '/admin/api/service-resume') {
+    servicePaused = false;
+    log('admin', '服务已恢复');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ ok: true, paused: false }));
+  }
+
+  // API: 重启服务
+  if (req.method === 'POST' && path === '/admin/api/service-restart') {
+    log('admin', '服务重启中...');
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
+    // 延迟退出，让响应先发送完
+    setTimeout(() => {
+      // 启动新进程
+      const child = spawn(process.execPath, [resolve(__dirname, 'server.js')], {
+        detached: true,
+        stdio: 'inherit',
+        cwd: ROOT,
+      });
+      child.unref();
+      process.exit(0);
+    }, 500);
+    return;
+  }
+
+  // 暂停时拦截非 admin 请求
+  if (servicePaused && !path.startsWith('/admin/')) {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ error: { message: 'Service paused' } }));
   }
 
   // 健康检查
