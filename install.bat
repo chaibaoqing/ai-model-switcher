@@ -2,6 +2,12 @@
 chcp 65001 >nul
 title AI Model Switcher - 一键安装
 
+:: 出错时不自动关闭窗口
+if "%~1"=="" (
+    cmd /k "%~f0" keep
+    exit /b
+)
+
 echo ==========================================
 echo   AI Model Switcher - 一键安装 (Windows)
 echo ==========================================
