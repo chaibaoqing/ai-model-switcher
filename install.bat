@@ -1,24 +1,11 @@
 @echo off
-chcp 65001 >nul
+chcp 65001 >nul 2>&1
 title AI Model Switcher - 一键安装
-
-:: 出错时不自动关闭窗口
-if "%~1"=="" (
-    cmd /k "%~f0" keep
-    exit /b
-)
 
 echo ==========================================
 echo   AI Model Switcher - 一键安装 (Windows)
 echo ==========================================
 echo.
-
-:: 检查管理员权限
-net session >nul 2>&1
-if %errorLevel% neq 0 (
-    echo [!] 部分功能需要管理员权限，建议右键"以管理员身份运行"
-    echo.
-)
 
 :: 1. 检查 Node.js
 echo [1/4] 检查环境...
@@ -26,30 +13,12 @@ where node >nul 2>&1
 if %errorLevel% neq 0 (
     echo [!] 未检测到 Node.js
     echo.
-    echo 请先安装 Node.js:
-    echo   方法一: 打开 https://nodejs.org 下载 LTS 版本安装
-    echo   方法二: winget install OpenJS.NodeJS.LTS
+    echo 请先安装 Node.js: https://nodejs.org
+    echo 下载 LTS 版本，安装后重新运行此脚本
     echo.
-    choice /c yn /m "是否尝试用 winget 自动安装 Node.js"
-    if %errorLevel% equ 1 (
-        echo 正在安装 Node.js...
-        winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements
-        if %errorLevel% neq 0 (
-            echo [x] 自动安装失败，请手动安装后重新运行此脚本
-            pause
-            exit /b 1
-        )
-        echo [v] Node.js 安装成功
-        :: 刷新 PATH
-        set "PATH=%PATH%;C:\Program Files\nodejs"
-    ) else (
-        echo 请安装 Node.js 后重新运行此脚本
-        pause
-        exit /b 1
-    )
-) else (
-    for /f "tokens=*" %%i in ('node -v') do echo [v] Node.js %%i
+    goto :done
 )
+for /f "tokens=*" %%i in ('node -v') do echo [v] Node.js %%i
 
 :: 2. 安装依赖
 echo.
@@ -58,8 +27,7 @@ if not exist node_modules (
     call npm install
     if %errorLevel% neq 0 (
         echo [x] 依赖安装失败
-        pause
-        exit /b 1
+        goto :done
     )
     echo [v] 依赖安装成功
 ) else (
@@ -88,11 +56,14 @@ echo.
 
 :: 4. 注册开机自启
 echo [4/4] 开机自启服务...
-choice /c yn /m "是否安装开机自启服务"
+choice /c yn /m "是否安装开机自启服务 (y/n)"
 if %errorLevel% equ 1 (
-    node scripts/install-service.js
+    node scripts\install-service.js
+    if %errorLevel% neq 0 (
+        echo [x] 服务安装失败
+    )
 ) else (
-    echo [-] 跳过开机自启，稍后可运行: node scripts/install-service.js
+    echo [-] 跳过开机自启，稍后可运行: node scripts\install-service.js
 )
 
 :: 完成
@@ -110,10 +81,12 @@ echo     base_url = "http://127.0.0.1:11435/v1"
 echo.
 echo ==========================================
 
-choice /c yn /m "是否立即启动服务"
+choice /c yn /m "是否立即启动服务 (y/n)"
 if %errorLevel% equ 1 (
     echo 正在启动...
-    npm start
+    call npm start
 )
 
+:done
+echo.
 pause
