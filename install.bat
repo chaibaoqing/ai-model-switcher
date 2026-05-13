@@ -1,89 +1,83 @@
 @echo off
-chcp 65001 >nul 2>&1
-title AI Model Switcher - 一键安装
+title AI Model Switcher - Install
 
 echo ==========================================
-echo   AI Model Switcher - 一键安装 (Windows)
+echo   AI Model Switcher - Install (Windows)
 echo ==========================================
 echo.
 
-:: 1. 检查 Node.js
-echo [1/4] 检查环境...
+:: 1. Check Node.js
+echo [1/4] Checking environment...
 where node >nul 2>&1
 if %errorLevel% neq 0 (
-    echo [!] 未检测到 Node.js
+    echo [!] Node.js not found
     echo.
-    echo 请先安装 Node.js: https://nodejs.org
-    echo 下载 LTS 版本，安装后重新运行此脚本
+    echo Please install Node.js LTS: https://nodejs.org
+    echo Then re-run this script.
     echo.
     goto :done
 )
-for /f "tokens=*" %%i in ('node -v') do echo [v] Node.js %%i
+for /f "tokens=*" %%i in ('node -v') do echo [OK] Node.js %%i
 
-:: 2. 安装依赖
+:: 2. Install dependencies
 echo.
-echo [2/4] 安装依赖...
-if not exist node_modules (
-    call npm install
-    if %errorLevel% neq 0 (
-        echo [x] 依赖安装失败
-        goto :done
-    )
-    echo [v] 依赖安装成功
-) else (
-    echo [v] 依赖已安装
+echo [2/4] Installing dependencies...
+call npm install
+if %errorLevel% neq 0 (
+    echo [FAIL] npm install failed
+    goto :done
 )
+echo [OK] Dependencies installed
 
-:: 3. 配置 API Key
+:: 3. Config
 echo.
-echo [3/4] 配置 API Key...
+echo [3/4] Configuration...
 if not exist config.json (
     if exist config.example.json (
         copy config.example.json config.json >nul
-        echo [v] 已创建 config.json
+        echo [OK] config.json created
     ) else (
-        echo [!] 未找到 config.example.json，请手动创建 config.json
+        echo [!] config.example.json not found
     )
 ) else (
-    echo [v] config.json 已存在
+    echo [OK] config.json already exists
 )
-
 echo.
-echo 请编辑 config.json 填入你的 API Key:
+echo Edit config.json, fill in your API Keys:
 echo   DeepSeek: https://platform.deepseek.com/api_keys
-echo   智谱:     https://open.bigmodel.cn/usercenter/apikeys
+echo   ZhiPu:    https://open.bigmodel.cn/usercenter/apikeys
 echo.
 
-:: 4. 注册开机自启
-echo [4/4] 开机自启服务...
-choice /c yn /m "是否安装开机自启服务 (y/n)"
+:: 4. Auto start service
+echo [4/4] Auto-start service...
+choice /c yn /m "Install auto-start service? (y/n)"
 if %errorLevel% equ 1 (
     node scripts\install-service.js
     if %errorLevel% neq 0 (
-        echo [x] 服务安装失败
+        echo [FAIL] Service install failed
     )
 ) else (
-    echo [-] 跳过开机自启，稍后可运行: node scripts\install-service.js
+    echo [SKIP] You can run later: node scripts\install-service.js
 )
 
-:: 完成
+:: Done
 echo.
 echo ==========================================
-echo   安装完成!
+echo   Install complete!
 echo ==========================================
 echo.
-echo   启动服务:  npm start
-echo   管理界面:  http://127.0.0.1:11435/admin
-echo   代理地址:  http://127.0.0.1:11435/v1/responses
+echo   Start:     npm start
+echo   Web UI:    http://127.0.0.1:11435/admin
+echo   Proxy:     http://127.0.0.1:11435/v1/responses
 echo.
-echo   配置 Codex: 编辑 %%USERPROFILE%%\.codex\config.toml
+echo   Codex config: edit %%USERPROFILE%%\.codex\config.toml
 echo     base_url = "http://127.0.0.1:11435/v1"
 echo.
 echo ==========================================
 
-choice /c yn /m "是否立即启动服务 (y/n)"
+choice /c yn /m "Start service now? (y/n)"
 if %errorLevel% equ 1 (
-    echo 正在启动...
+    echo Starting...
     call npm start
 )
 
