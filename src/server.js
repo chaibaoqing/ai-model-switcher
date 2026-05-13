@@ -9,7 +9,7 @@ import https from 'node:https';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { config, getActiveProvider } from './config.js';
+import { config, getActiveProvider, setActiveProvider, save as saveConfig } from './config.js';
 import { SseTranslator } from './translator.js';
 import {
   extractText, translateTools,
@@ -282,77 +282,6 @@ async function handleZhiPu(body, provider, res) {
   });
 }
 
-// ---------- Web 管理 API ----------
-
-function handleWebAPI(req, res, url) {
-  // GET /admin/api/status
-  if (req.method === 'GET' && url.pathname === '/admin/api/status') {
-    const active = getActiveProvider();
-    const provList = {};
-    for (const [name, prov] of Object.entries(providers)) {
-      provList[name] = {
-        name: prov.name,
-        model: prov.model,
-        port: prov.port,
-        configured: !!prov.apiKey,
-        active: name === active,
-      };
-    }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    return res.end(JSON.stringify({ version: VERSION, activeProvider: active, providers: provList }));
-  }
-
-  // POST /admin/api/switch
-  if (req.method === 'POST' && url.pathname === '/admin/api/switch') {
-    readBody(req).then(raw => {
-      const { provider } = JSON.parse(raw);
-      if (!providers[provider]) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: `Unknown provider: ${provider}` }));
-      }
-      const { setActiveProvider } = await import('./config.js');
-      setActiveProvider(provider);
-      log('admin', `切换到 ${providers[provider].name}`);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, activeProvider: provider }));
-    }).catch(e => {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: e.message }));
-    });
-    return;
-  }
-
-  // POST /admin/api/config
-  if (req.method === 'POST' && url.pathname === '/admin/api/config') {
-    readBody(req).then(raw => {
-      const updates = JSON.parse(raw);
-      for (const [key, value] of Object.entries(updates)) {
-        if (key.startsWith('providers.')) {
-          const [_, provName, field] = key.split('.');
-          if (providers[provName]) providers[provName][field] = value;
-        }
-      }
-      const { save } = await import('./config.js');
-      save();
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true }));
-    }).catch(e => {
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: e.message }));
-    });
-    return;
-  }
-
-  // Web 管理界面
-  if (req.method === 'GET' && (url.pathname === '/admin' || url.pathname === '/admin/')) {
-    const html = readFileSync(resolve(ROOT, 'public/index.html'), 'utf-8');
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-    return res.end(html);
-  }
-
-  return false;
-}
-
 // ---------- HTTP Server ----------
 
 const server = http.createServer(async (req, res) => {
@@ -363,10 +292,70 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
 
   const url = new URL(req.url, `http://${req.headers.host}`);
+  const path = url.pathname;
 
-  // Web 管理
-  if (url.pathname.startsWith('/admin')) {
-    if (handleWebAPI(req, res, url) !== false) return;
+  // Web 管理界面
+  if (req.method === 'GET' && (path === '/admin' || path === '/admin/')) {
+    try {
+      const html = readFileSync(resolve(ROOT, 'public/index.html'), 'utf-8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      return res.end(html);
+    } catch (e) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      return res.end('Admin UI error: ' + e.message);
+    }
+  }
+
+  // API: 状态
+  if (req.method === 'GET' && path === '/admin/api/status') {
+    const active = getActiveProvider();
+    const provList = {};
+    for (const [name, prov] of Object.entries(providers)) {
+      provList[name] = { name: prov.name, model: prov.model, port: prov.port, configured: !!prov.apiKey, active: name === active };
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    return res.end(JSON.stringify({ version: VERSION, activeProvider: active, providers: provList }));
+  }
+
+  // API: 切换模型
+  if (req.method === 'POST' && path === '/admin/api/switch') {
+    try {
+      const raw = await readBody(req);
+      const { provider } = JSON.parse(raw);
+      if (!providers[provider]) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: `Unknown provider: ${provider}` }));
+      }
+      setActiveProvider(provider);
+      log('admin', `切换到 ${providers[provider].name}`);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: true, activeProvider: provider }));
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: e.message }));
+    }
+  }
+
+  // API: 保存配置
+  if (req.method === 'POST' && path === '/admin/api/config') {
+    try {
+      const raw = await readBody(req);
+      const updates = JSON.parse(raw);
+      for (const [key, value] of Object.entries(updates)) {
+        if (key.startsWith('providers.')) {
+          const parts = key.split('.');
+          const provName = parts[1];
+          const field = parts[2];
+          if (providers[provName]) providers[provName][field] = value;
+        }
+      }
+      saveConfig();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ ok: true }));
+    } catch (e) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ error: e.message }));
+    }
   }
 
   // 健康检查

@@ -68,7 +68,6 @@ for (const [name, prov] of Object.entries(config.providers)) {
 }
 
 export function save() {
-  // 不保存默认值，只保存用户修改
   writeFileSync(CFG_PATH, JSON.stringify(config, null, 2));
 }
 
@@ -93,3 +92,6 @@ export function setActiveProvider(name) {
   config.activeProvider = name;
   save();
 }
+
+// 导出 config 对象本身
+export { config };
