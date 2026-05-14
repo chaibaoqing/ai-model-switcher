@@ -9,7 +9,7 @@ import https from 'node:https';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { homedir } from 'node:os';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { config, getActiveProvider, setActiveProvider, save as saveConfig } from './config.js';
 import { SseTranslator } from './translator.js';
@@ -22,13 +22,42 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
-const VERSION = '1.2.0';
+const VERSION = '1.3.0';
 const providers = config.providers;
 
 // ---------- 服务状态 ----------
 let servicePaused = false;
 
 // ---------- 工具函数 ----------
+
+function writeCodexConfig() {
+  try {
+    const mainPort = config.data?.mainPort || 11435;
+    const codexDir = resolve(homedir(), '.codex');
+    const codexConfig = resolve(codexDir, 'config.toml');
+    if (!existsSync(codexDir)) mkdirSync(codexDir, { recursive: true });
+    const toml = `model_provider = "custom"
+model = "auto"
+model_reasoning_effort = "high"
+disable_response_storage = true
+
+[model_providers.custom]
+name = "Model Switcher"
+wire_api = "responses"
+requires_openai_auth = false
+base_url = "http://127.0.0.1:${mainPort}/v1"
+stream_idle_timeout_ms = 300000
+`;
+    if (existsSync(codexConfig)) {
+      const backup = codexConfig + '.bak';
+      if (!existsSync(backup)) writeFileSync(backup, readFileSync(codexConfig, 'utf-8'));
+    }
+    writeFileSync(codexConfig, toml);
+    log('admin', 'Codex config auto-written');
+  } catch (e) {
+    log('admin', `Codex config write failed: ${e.message}`);
+  }
+}
 
 function log(provider, msg) {
   const time = new Date().toISOString().slice(11, 19);
@@ -404,6 +433,7 @@ const server = http.createServer(async (req, res) => {
         return res.end(JSON.stringify({ error: `Unknown provider: ${provider}` }));
       }
       setActiveProvider(provider);
+      writeCodexConfig();
       log('admin', `切换到 ${providers[provider].name}`);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: true, activeProvider: provider }));
@@ -427,6 +457,7 @@ const server = http.createServer(async (req, res) => {
         }
       }
       saveConfig();
+      writeCodexConfig();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ ok: true }));
     } catch (e) {
@@ -545,37 +576,12 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // API: 一键配置 Codex
+  // API: 手动配置 Codex（保留兼容）
   if (req.method === 'POST' && path === '/admin/api/setup-codex') {
     try {
-      const mainPort = config.data?.mainPort || 11435;
-      const codexDir = resolve(homedir(), '.codex');
-      const codexConfig = resolve(codexDir, 'config.toml');
-
-      if (!existsSync(codexDir)) mkdirSync(codexDir, { recursive: true });
-
-      const toml = `model_provider = "custom"
-model = "auto"
-model_reasoning_effort = "high"
-disable_response_storage = true
-
-[model_providers.custom]
-name = "Model Switcher"
-wire_api = "responses"
-requires_openai_auth = false
-base_url = "http://127.0.0.1:${mainPort}/v1"
-stream_idle_timeout_ms = 300000
-`;
-
-      if (existsSync(codexConfig)) {
-        const backup = codexConfig + '.bak';
-        if (!existsSync(backup)) writeFileSync(backup, readFileSync(codexConfig, 'utf-8'));
-      }
-
-      writeFileSync(codexConfig, toml);
-      log('admin', 'Codex config written');
+      writeCodexConfig();
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ ok: true, path: codexConfig }));
+      return res.end(JSON.stringify({ ok: true }));
     } catch (e) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify({ error: e.message }));
@@ -628,17 +634,17 @@ stream_idle_timeout_ms = 300000
     log('admin', '服务重启中...');
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true }));
-    // 延迟退出，让响应先发送完
+    // 用独立脚本重启，先杀旧进程再启新的，避免端口冲突
     setTimeout(() => {
-      // 启动新进程
-      const child = spawn(process.execPath, [resolve(__dirname, 'server.js')], {
+      const restartScript = resolve(ROOT, 'scripts/do-restart.js');
+      const child = spawn(process.execPath, [restartScript], {
         detached: true,
-        stdio: 'inherit',
+        stdio: 'ignore',
         cwd: ROOT,
       });
       child.unref();
       process.exit(0);
-    }, 500);
+    }, 300);
     return;
   }
 
@@ -720,5 +726,23 @@ server.listen(MAIN_PORT, '127.0.0.1', () => {
     console.log(`  [${name}] ${prov.name} (${prov.model}) ${status}${active}`);
   }
   console.log('');
+  // 启动时自动配置 Codex
+  writeCodexConfig();
   console.log('='.repeat(50));
+
+  // 自动打开管理界面
+  if (!process.env.NO_OPEN_BROWSER) {
+    setTimeout(() => {
+      const url = `http://127.0.0.1:${MAIN_PORT}/admin`;
+      try {
+        if (process.platform === 'win32') {
+          spawn('cmd', ['/c', 'start', '""', url], { detached: true, stdio: 'ignore' }).unref();
+        } else if (process.platform === 'darwin') {
+          spawn('open', [url], { detached: true, stdio: 'ignore' }).unref();
+        } else {
+          spawn('xdg-open', [url], { detached: true, stdio: 'ignore' }).unref();
+        }
+      } catch {}
+    }, 2000);
+  }
 });
